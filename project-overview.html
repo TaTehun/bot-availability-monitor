@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bot Availability Monitor — Portfolio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep:    #080b10;
+      --bg-page:    #0f1318;
+      --bg-card:    #1c2230;
+      --bg-input:   #131720;
+      --border:     #404858;
+      --border-hi:  #505a6e;
+      --text-1:     #e6edf3;
+      --text-2:     #c8d4e0;
+      --text-3:     #a0adb8;
+      --green:      #4ade80;
+      --blue:       #60a5fa;
+      --red:        #f87171;
+      --yellow:     #fbbf24;
+      --purple:     #a78bfa;
+      --orange:     #fb923c;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg-page); color: var(--text-1); min-height: 100vh; overflow-x: hidden; }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none; z-index: 9999;
+    }
+
+    @keyframes blink     { 50% { opacity: 0; } }
+    @keyframes fade-up   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse-dot { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.4); } 60% { box-shadow: 0 0 0 6px rgba(74,222,128,0); } }
+    @keyframes draw-path { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+
+    .anim-fade-up { animation: fade-up .5s ease both; }
+    .d1{animation-delay:.05s} .d2{animation-delay:.12s} .d3{animation-delay:.19s}
+    .d4{animation-delay:.26s} .d5{animation-delay:.33s} .d6{animation-delay:.40s}
+
+    /* ── Header ── */
+    .hdr { background: var(--bg-deep); border-bottom: 1px solid var(--border); padding: 0 48px; display: flex; align-items: stretch; justify-content: space-between; position: sticky; top: 0; z-index: 100; min-height: 72px; }
+    .hdr::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--green) 20%, var(--blue) 60%, transparent); opacity: 0.35; }
+    .hdr-left { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+    .hdr-prompt { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 600; color: var(--green); opacity: 0.8; }
+    .hdr-title { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 700; color: var(--text-1); letter-spacing: -0.02em; }
+    .hdr-cursor { color: var(--green); animation: blink 1.1s step-end infinite; }
+    .hdr-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500; color: var(--text-3); }
+    .hdr-right { display: flex; align-items: center; gap: 6px; }
+    .hdr-pill { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 700; padding: 5px 12px; letter-spacing: 0.04em; }
+    .pill-green { color: var(--green); border: 1px solid rgba(74,222,128,.3); background: rgba(74,222,128,.07); }
+    .pill-green .dot { display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; margin-right: 6px; vertical-align: middle; animation: pulse-dot 2s ease infinite; }
+    .pill-dim { color: var(--text-2); border: 1px solid var(--border); background: var(--bg-card); }
+
+    /* ── Tabs ── */
+    .tabs-wrap { background: var(--bg-deep); border-bottom: 1px solid var(--border); padding: 0 40px; display: flex; position: sticky; top: 72px; z-index: 99; }
+    .tab { color: var(--text-3); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; padding: 14px 24px; cursor: pointer; border-bottom: 2px solid transparent; transition: color .2s, border-color .2s, background .2s; user-select: none; }
+    .tab:hover { color: var(--text-1); background: rgba(255,255,255,.02); }
+    .tab.active { color: var(--text-1); border-bottom-color: var(--green); background: rgba(74,222,128,.04); }
+    .tab-num { color: var(--green); margin-right: 9px; font-size: 0.65rem; opacity: .7; }
+    .tab.active .tab-num { opacity: 1; }
+
+    /* ── Pages ── */
+    .page { display: none; background: var(--bg-page); }
+    .page.active { display: block; }
+    .page-inner { max-width: 1100px; margin: 0 auto; padding: 40px 28px 60px; }
+
+    /* ── Section labels ── */
+    .sec-label { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 700; color: var(--green); letter-spacing: 0.1em; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
+    .sec-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); max-width: 180px; }
+    .sec { margin-bottom: 52px; }
+
+    /* ── Metrics ── */
+    .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { background: var(--bg-card); border: 1px solid var(--border); border-top: 2px solid transparent; padding: 20px 16px 18px; position: relative; overflow: hidden; transition: border-color .2s, transform .2s; }
+    .metric::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(96,165,250,.04) 0%, transparent 60%); pointer-events: none; }
+    .metric:hover { transform: translateY(-2px); border-color: var(--border-hi); }
+    .metric.m-blue  { border-top-color: var(--blue); }
+    .metric.m-green { border-top-color: var(--green); }
+    .metric.m-yellow{ border-top-color: var(--yellow); }
+    .metric.m-purple{ border-top-color: var(--purple); }
+    .metric-val { font-family: 'JetBrains Mono', monospace; font-size: 2rem; font-weight: 700; line-height: 1; }
+    .m-blue .metric-val  { color: var(--blue); }
+    .m-green .metric-val { color: var(--green); }
+    .m-yellow .metric-val{ color: var(--yellow); }
+    .m-purple .metric-val{ color: var(--purple); }
+    .metric-key { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 700; color: var(--text-3); margin-top: 10px; letter-spacing: 0.04em; }
+    .metric-sub { font-size: 0.67rem; font-weight: 500; color: var(--text-2); margin-top: 3px; }
+
+    /* ── Timeline ── */
+    @keyframes glow-h-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.5), 0 0 10px rgba(74,222,128,.2); } 50% { box-shadow: 0 0 0 7px rgba(74,222,128,0), 0 0 22px rgba(74,222,128,.5); } }
+    .station-track-h { display: flex; align-items: center; width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 24px 28px; }
+    .station-h { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 110px; flex-shrink: 0; }
+    .station-h-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-deep); display: flex; align-items: center; justify-content: center; z-index: 1; }
+    .station-h-dot-inner { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+    .station-h.done .station-h-dot { border-color: rgba(96,165,250,.6); background: rgba(96,165,250,.08); }
+    .station-h.done .station-h-dot-inner { background: var(--blue); }
+    .live-h-dot { border-color: rgba(74,222,128,.75) !important; background: rgba(74,222,128,.1) !important; animation: glow-h-pulse 2.2s ease infinite; }
+    .live-h-dot .station-h-dot-inner { background: var(--green) !important; }
+    .station-h-label { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-align: center; color: var(--text-3); }
+    .station-h-label.done { color: var(--blue); }
+    .station-h-label.live { color: var(--green); }
+    .station-h-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 600; color: var(--text-3); text-align: center; }
+    .station-h-sub.live { color: var(--green); }
+    .station-h-rail { flex: 1; height: 2px; min-width: 32px; background: var(--blue); opacity: 0.45; position: relative; top: -10px; }
+
+    /* ── Feature cards ── */
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .feat-card { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--blue); padding: 20px; transition: transform .2s, border-color .2s; }
+    .feat-card:hover { transform: translateY(-2px); border-color: rgba(96,165,250,.6); }
+    .feat-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.58rem; font-weight: 700; color: var(--blue); letter-spacing: 0.14em; margin-bottom: 8px; }
+    .feat-title { font-size: 0.84rem; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
+    .feat-desc { font-size: 0.73rem; font-weight: 500; color: var(--text-2); line-height: 1.7; }
+    .feat-desc code { font-family: 'JetBrains Mono', monospace; background: var(--bg-deep); color: var(--red); padding: 1px 6px; font-size: 0.67rem; border: 1px solid var(--border); }
+
+    /* ── IO section ── */
+    .io-wrap { display: flex; align-items: center; gap: 16px; }
+    .sources-col { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+    .src-row { background: var(--bg-card); border: 1px solid var(--border); border-left: 2px solid transparent; padding: 10px 16px; display: flex; align-items: center; gap: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; transition: border-color .15s, background .15s; }
+    .src-row:hover { border-left-color: var(--blue); background: #1a1f2c; }
+    .src-label { color: var(--blue); font-weight: 700; min-width: 60px; }
+    .src-name  { color: var(--text-1); flex: 1; font-size: 0.7rem; font-weight: 600; font-family: 'Inter', sans-serif; }
+    .src-badge { font-size: 0.6rem; font-weight: 700; padding: 2px 8px; background: rgba(74,222,128,.08); color: var(--green); border: 1px solid rgba(74,222,128,.3); letter-spacing: 0.04em; }
+    .io-arrow { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 8px; flex-shrink: 0; }
+    .arrow-shaft { width: 2px; height: 44px; background: linear-gradient(180deg, var(--border), var(--blue)); position: relative; }
+    .arrow-shaft::after { content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--blue); }
+    .arrow-label { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700; color: var(--blue); text-align: center; line-height: 1.5; letter-spacing: 0.04em; }
+    .output-card { flex: 1; background: var(--bg-card); border: 1px solid rgba(96,165,250,.25); border-top: 2px solid var(--blue); padding: 20px; }
+    .output-title { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 700; color: var(--blue); margin-bottom: 16px; }
+    .out-row { display: flex; gap: 12px; margin-bottom: 9px; font-size: 0.71rem; align-items: baseline; }
+    .out-key { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text-3); min-width: 72px; font-size: 0.64rem; }
+    .out-val { font-weight: 600; color: var(--text-1); }
+
+    /* ── Dependencies ── */
+    .dep-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .dep { background: var(--bg-card); border: 1px solid var(--border); padding: 8px 15px; display: flex; align-items: center; gap: 10px; transition: border-color .15s; cursor: default; }
+    .dep:hover { border-color: var(--border-hi); }
+    .dep-name { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 700; color: var(--text-1); }
+    .dep-role { font-size: 0.63rem; font-weight: 600; color: var(--text-3); }
+
+    /* ── Flowchart ── */
+    .flowchart-wrap { background: var(--bg-card); border: 1px solid var(--border); padding: 24px 16px; overflow: hidden; }
+    .fc-svg-container { width: 100%; cursor: zoom-in; transition: transform .35s cubic-bezier(.25,.46,.45,.94); }
+    .fc-svg-container.zoomed { transform: scale(1.35); cursor: zoom-out; }
+    #fc-svg { display: block; width: 100%; height: auto; }
+    .fc-zoom-hint { text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 600; color: var(--text-3); margin-top: 10px; letter-spacing: 0.06em; }
+    .fc-node-start   { fill: #0d1e33; stroke: rgba(96,165,250,.55); stroke-width: 1.5; }
+    .fc-node-process { fill: #131c28; stroke: #505a6e; stroke-width: 1.5; }
+    .fc-node-ok      { fill: #0a1f12; stroke: rgba(74,222,128,.55); stroke-width: 1.5; }
+    .fc-node-warn    { fill: #1a1200; stroke: rgba(251,191,36,.45); stroke-width: 1.5; }
+    .fc-node-err     { fill: #1f0d0d; stroke: rgba(248,113,113,.55); stroke-width: 1.5; }
+    .fc-node-decide  { fill: #1e1a08; stroke: rgba(202,138,4,.55); stroke-width: 1.5; }
+    .fc-t-main { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; fill: #e6edf3; }
+    .fc-t-main.start  { fill: #93c5fd; }
+    .fc-t-main.ok     { fill: #4ade80; }
+    .fc-t-main.err    { fill: #f87171; }
+    .fc-t-main.decide { fill: #fbbf24; }
+    .fc-t-sub { font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 9.5px; fill: #a0adb8; }
+    .fc-edge { fill: none; stroke: #505a6e; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .fc-edge-ok  { stroke: rgba(74,222,128,.65); }
+    .fc-edge-err { stroke: rgba(248,113,113,.65); }
+    .fc-edge-warn { stroke: rgba(251,191,36,.5); }
+    .fc-edge.animated { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); }
+    .fc-edge.animated.run { animation: draw-path .6s ease forwards; }
+    .fc-label-yes { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 9px; fill: #4ade80; }
+    .fc-label-no  { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 9px; fill: #f87171; }
+
+    /* ── Code cards ── */
+    .code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .code-card { background: #07090e; border: 1px solid var(--border); overflow: hidden; cursor: pointer; }
+    .code-card:hover { border-color: var(--border-hi); }
+    .code-card-hdr { padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--bg-card); }
+    .code-card-title { font-size: 0.72rem; font-weight: 700; color: var(--text-1); }
+    .code-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 700; padding: 2px 9px; background: rgba(74,222,128,.08); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    pre { padding: 16px; font-size: 0.72rem; line-height: 1.78; color: var(--text-1); overflow-x: auto; font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace; font-weight: 500; }
+    .kw { color: #f472b6; font-weight: 700; }
+    .vr { color: var(--blue); }
+    .st { color: #86efac; }
+    .cm { color: #4d5a6a; font-style: italic; }
+    .nm { color: var(--orange); }
+    .type-cursor { display: inline-block; width: 2px; height: 1em; background: var(--green); vertical-align: text-bottom; margin-left: 1px; animation: blink .9s step-end infinite; }
+
+    /* ── Convo cards ── */
+    .convo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .convo-card { background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; cursor: pointer; }
+    .convo-card:hover { border-color: var(--border-hi); }
+    .convo-hdr { padding: 11px 18px; background: var(--bg-deep); border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; color: var(--blue); letter-spacing: 0.03em; }
+    .convo-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { display: flex; gap: 10px; align-items: flex-start; opacity: 0; transform: translateY(6px); transition: opacity .25s ease, transform .25s ease; }
+    .msg.visible { opacity: 1; transform: translateY(0); }
+    .avatar { width: 26px; height: 26px; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .avatar-u { background: rgba(96,165,250,.12); color: var(--blue); border: 1px solid rgba(96,165,250,.35); }
+    .avatar-c { background: rgba(251,191,36,.1); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+    .bubble { font-size: 0.76rem; font-weight: 500; line-height: 1.65; color: var(--text-1); background: var(--bg-page); border: 1px solid var(--border); padding: 8px 12px; flex: 1; }
+    .bubble-c { background: #100f09; border-color: rgba(251,191,36,.2); }
+    .bubble code { font-family: 'JetBrains Mono', monospace; background: var(--bg-deep); color: var(--red); padding: 1px 5px; font-size: 0.66rem; border: 1px solid var(--border); }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .hdr { padding: 0 20px; flex-wrap: wrap; align-content: center; gap: 6px; }
+      .hdr-prompt { display: none; }
+      .tabs-wrap { top: 60px; padding: 0 12px; }
+      .tab { font-size: 0.7rem; padding: 12px 14px; }
+      .page-inner { padding: 24px 16px 48px; }
+      .sec { margin-bottom: 36px; }
+      .metrics-row { grid-template-columns: repeat(2, 1fr); }
+      .feat-grid { grid-template-columns: 1fr; }
+      .io-wrap { flex-direction: column; gap: 12px; }
+      .io-arrow { flex-direction: row; padding: 4px 0; }
+      .arrow-shaft { width: 44px; height: 2px; background: linear-gradient(90deg, var(--border), var(--blue)); }
+      .arrow-shaft::after { bottom: 50%; left: auto; right: -5px; transform: translateY(50%); border-left: 6px solid var(--blue); border-right: none; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+      .code-grid { grid-template-columns: 1fr; }
+      .convo-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Footer ── */
+    footer { text-align: center; padding: 20px 24px; font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; font-weight: 600; color: var(--text-3); border-top: 1px solid var(--border); background: var(--bg-deep); letter-spacing: 0.04em; }
+  </style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-prompt">~/projects/bot-availability-monitor</span>
+    <h1 class="hdr-title">bot_availability_monitor<span class="hdr-cursor">_</span></h1>
+    <p class="hdr-sub">Real-time GRD session monitor &nbsp;·&nbsp; Python · PowerShell · pywebview</p>
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-pill pill-green"><span class="dot"></span>ACTIVE</span>
+    <span class="hdr-pill pill-dim">6 bots · 5s</span>
+  </div>
+</header>
+
+<div class="tabs-wrap">
+  <div class="tab active" onclick="switchTab(0)"><span class="tab-num">01</span>Overview</div>
+  <div class="tab" onclick="switchTab(1)"><span class="tab-num">02</span>System Flow</div>
+  <div class="tab" onclick="switchTab(2)"><span class="tab-num">03</span>Code &amp; Highlights</div>
+</div>
+
+<!-- ══ PAGE 1 — OVERVIEW ══ -->
+<div class="page active" id="page-0">
+  <div class="page-inner">
+
+    <div class="sec">
+      <p class="sec-label">// system_metrics</p>
+      <div class="metrics-row">
+        <div class="metric m-blue anim-fade-up d1">
+          <div class="metric-val">6</div>
+          <div class="metric-key">bots_monitored</div>
+          <div class="metric-sub">Bot0 ~ Bot5</div>
+        </div>
+        <div class="metric m-green anim-fade-up d2">
+          <div class="metric-val">5s</div>
+          <div class="metric-key">poll_interval</div>
+          <div class="metric-sub">per bot PC</div>
+        </div>
+        <div class="metric m-yellow anim-fade-up d3">
+          <div class="metric-val">30s</div>
+          <div class="metric-key">stale_threshold</div>
+          <div class="metric-sub">mtime → OFFLINE</div>
+        </div>
+        <div class="metric m-purple anim-fade-up d4">
+          <div class="metric-val">2</div>
+          <div class="metric-key">ui_surfaces</div>
+          <div class="metric-sub">widget · web</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-label">// dev_timeline</p>
+      <div class="station-track-h">
+        <div class="station-h done">
+          <div class="station-h-dot"><div class="station-h-dot-inner"></div></div>
+          <div class="station-h-label done">DESIGN</div>
+          <div class="station-h-sub">1 day</div>
+        </div>
+        <div class="station-h-rail"></div>
+        <div class="station-h done">
+          <div class="station-h-dot"><div class="station-h-dot-inner"></div></div>
+          <div class="station-h-label done">DEVELOPMENT</div>
+          <div class="station-h-sub">3 days</div>
+        </div>
+        <div class="station-h-rail"></div>
+        <div class="station-h done">
+          <div class="station-h-dot"><div class="station-h-dot-inner"></div></div>
+          <div class="station-h-label done">TESTING</div>
+          <div class="station-h-sub">2 days</div>
+        </div>
+        <div class="station-h-rail"></div>
+        <div class="station-h done">
+          <div class="station-h-dot live-h-dot"><div class="station-h-dot-inner"></div></div>
+          <div class="station-h-label live">GO-LIVE</div>
+          <div class="station-h-sub live">Active</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What goes in / what comes out -->
+    <div class="sec">
+      <p class="sec-label">// data_flow → output</p>
+      <div class="io-wrap">
+        <div class="sources-col">
+          <div class="src-row anim-fade-up d1"><span class="src-label">BOT PC</span><span class="src-name">remoting_host process + TCP connection state</span><span class="src-badge">every 5s</span></div>
+          <div class="src-row anim-fade-up d2"><span class="src-label">NETWORK</span><span class="src-name">BotN.json on shared drive (atomic write)</span><span class="src-badge">shared</span></div>
+        </div>
+        <div class="io-arrow">
+          <div class="arrow-shaft"></div>
+          <div class="arrow-label">READ +<br>RENDER</div>
+        </div>
+        <div class="output-card anim-fade-up d2">
+          <div class="output-title">Desktop Widget (always-on-top)</div>
+          <div class="out-row"><span class="out-key">refresh</span><span class="out-val">every 5 seconds via ThreadPoolExecutor</span></div>
+          <div class="out-row"><span class="out-key">stale</span><span class="out-val">mtime &gt; 30s → force OFFLINE</span></div>
+          <div class="out-row"><span class="out-key">last use</span><span class="out-val">IN_USE → other transition timestamp</span></div>
+          <div class="out-row"><span class="out-key">launch</span><span class="out-val">VBS → BAT → pythonw (no console)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-label">// technical_highlights</p>
+      <div class="feat-grid">
+        <div class="feat-card anim-fade-up d1">
+          <div class="feat-tag">DETECTION</div>
+          <div class="feat-title">Process + TCP Correlation</div>
+          <div class="feat-desc"><code>remoting_host.exe</code> stays alive between sessions. Status is only <code>IN_USE</code> when the process PID also has an established TCP connection via <code>Get-NetTCPConnection</code>.</div>
+        </div>
+        <div class="feat-card anim-fade-up d2">
+          <div class="feat-tag">RESILIENCE</div>
+          <div class="feat-title">Atomic File Write + Fail Counter</div>
+          <div class="feat-desc">Each write goes to <code>.tmp</code> then renames atomically — prevents partial reads. Widget uses a 3-miss fail counter before flipping to OFFLINE, absorbing brief network blips.</div>
+        </div>
+        <div class="feat-card anim-fade-up d3">
+          <div class="feat-tag">UX</div>
+          <div class="feat-title">Silent Always-on-Top Widget</div>
+          <div class="feat-desc">Launched via <code>widget.vbs → widget.bat → pythonw</code>. No console window, no taskbar entry. <code>pywebview</code> renders the HTML/CSS UI in a frameless 400×280 window pinned on top.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-label">// dependencies</p>
+      <div class="dep-grid">
+        <div class="dep"><span class="dep-name">python</span><span class="dep-role">runtime</span></div>
+        <div class="dep"><span class="dep-name">pywebview</span><span class="dep-role">desktop widget</span></div>
+        <div class="dep"><span class="dep-name">pillow</span><span class="dep-role">icon generation</span></div>
+        <div class="dep"><span class="dep-name">fastapi</span><span class="dep-role">web dashboard</span></div>
+        <div class="dep"><span class="dep-name">powershell</span><span class="dep-role">bot monitor scripts</span></div>
+        <div class="dep"><span class="dep-name">task scheduler</span><span class="dep-role">auto-start / restart</span></div>
+        <div class="dep"><span class="dep-name">claude-code</span><span class="dep-role">AI dev</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ PAGE 2 — ARCHITECTURE ══ -->
+<div class="page" id="page-1">
+  <div class="page-inner">
+
+    <div class="sec">
+      <p class="sec-label">// architecture_diagram</p>
+      <div class="flowchart-wrap">
+        <div class="fc-svg-container">
+          <svg id="fc-svg" viewBox="0 0 860 480" style="overflow:visible">
+            <defs>
+              <marker id="arr"    markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L0,6.5 L7,3.5 z" fill="#505a6e"/></marker>
+              <marker id="arr-g"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L0,6.5 L7,3.5 z" fill="rgba(74,222,128,.8)"/></marker>
+              <marker id="arr-b"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L0,6.5 L7,3.5 z" fill="rgba(96,165,250,.8)"/></marker>
+            </defs>
+
+            <!-- ── BOT PCs (top row, 6 nodes) ── -->
+            <!-- Bot0 -->
+            <rect class="fc-node-process" x="20"  y="20" width="110" height="64" rx="0"/>
+            <text class="fc-t-main" x="75"  y="42" text-anchor="middle">BOT 0</text>
+            <text class="fc-t-sub"  x="75"  y="58" text-anchor="middle">monitor_Bot0.ps1</text>
+            <text class="fc-t-sub"  x="75"  y="72" text-anchor="middle">every 5s</text>
+
+            <!-- Bot1 -->
+            <rect class="fc-node-process" x="155" y="20" width="110" height="64" rx="0"/>
+            <text class="fc-t-main" x="210" y="42" text-anchor="middle">BOT 1</text>
+            <text class="fc-t-sub"  x="210" y="58" text-anchor="middle">monitor_Bot1.ps1</text>
+            <text class="fc-t-sub"  x="210" y="72" text-anchor="middle">every 5s</text>
+
+            <!-- Bot2 -->
+            <rect class="fc-node-process" x="290" y="20" width="110" height="64" rx="0"/>
+            <text class="fc-t-main" x="345" y="42" text-anchor="middle">BOT 2</text>
+            <text class="fc-t-sub"  x="345" y="58" text-anchor="middle">monitor_Bot2.ps1</text>
+            <text class="fc-t-sub"  x="345" y="72" text-anchor="middle">every 5s</text>
+
+            <!-- Bot3 -->
+            <rect class="fc-node-process" x="425" y="20" width="110" height="64" rx="0"/>
+            <text class="fc-t-main" x="480" y="42" text-anchor="middle">BOT 3</text>
+            <text class="fc-t-sub"  x="480" y="58" text-anchor="middle">monitor_Bot3.ps1</text>
+            <text class="fc-t-sub"  x="480" y="72" text-anchor="middle">every 5s</text>
+
+            <!-- Bot4 -->
+            <rect class="fc-node-process" x="560" y="20" width="110" height="64" rx="0"/>
+            <text class="fc-t-main" x="615" y="42" text-anchor="middle">BOT 4</text>
+            <text class="fc-t-sub"  x="615" y="58" text-anchor="middle">monitor_Bot4.ps1</text>
+            <text class="fc-t-sub"  x="615" y="72" text-anchor="middle">every 5s</text>
+
+            <!-- Bot5 -->
+            <rect class="fc-node-process" x="695" y="20" width="110" height="64" rx="0"/>
+            <text class="fc-t-main" x="750" y="42" text-anchor="middle">BOT 5</text>
+            <text class="fc-t-sub"  x="750" y="58" text-anchor="middle">monitor_Bot5.ps1</text>
+            <text class="fc-t-sub"  x="750" y="72" text-anchor="middle">every 5s</text>
+
+            <!-- ── Bot → Network Share arrows ── -->
+            <line class="fc-edge" x1="75"  y1="84" x2="75"  y2="178" marker-end="url(#arr)"/>
+            <line class="fc-edge" x1="210" y1="84" x2="210" y2="178" marker-end="url(#arr)"/>
+            <line class="fc-edge" x1="345" y1="84" x2="345" y2="178" marker-end="url(#arr)"/>
+            <line class="fc-edge" x1="480" y1="84" x2="480" y2="178" marker-end="url(#arr)"/>
+            <line class="fc-edge" x1="615" y1="84" x2="615" y2="178" marker-end="url(#arr)"/>
+            <line class="fc-edge" x1="750" y1="84" x2="750" y2="178" marker-end="url(#arr)"/>
+
+            <!-- Write labels -->
+            <text class="fc-t-sub" x="75"  y="140" text-anchor="middle" style="fill:#404858;">Bot0.json</text>
+            <text class="fc-t-sub" x="210" y="140" text-anchor="middle" style="fill:#404858;">Bot1.json</text>
+            <text class="fc-t-sub" x="345" y="140" text-anchor="middle" style="fill:#404858;">Bot2.json</text>
+            <text class="fc-t-sub" x="480" y="140" text-anchor="middle" style="fill:#404858;">Bot3.json</text>
+            <text class="fc-t-sub" x="615" y="140" text-anchor="middle" style="fill:#404858;">Bot4.json</text>
+            <text class="fc-t-sub" x="750" y="140" text-anchor="middle" style="fill:#404858;">Bot5.json</text>
+
+            <!-- ── Network Share (center) ── -->
+            <rect class="fc-node-start" x="20" y="178" width="820" height="70" rx="4"/>
+            <text class="fc-t-main start" x="430" y="203" text-anchor="middle">Network Share</text>
+            <text class="fc-t-sub"        x="430" y="220" text-anchor="middle">Bot0.json · Bot1.json · Bot2.json · Bot3.json · Bot4.json · Bot5.json</text>
+            <text class="fc-t-sub"        x="430" y="236" text-anchor="middle">atomic write (tmp → rename) · stale guard: mtime &gt; 30s → OFFLINE</text>
+
+            <!-- ── Share → Readers ── -->
+            <!-- Share → Widget -->
+            <line class="fc-edge fc-edge-ok" x1="220" y1="248" x2="220" y2="326" marker-end="url(#arr-g)"/>
+            <text class="fc-t-sub" x="234" y="292" style="fill:#4ade80;font-weight:700;">reads</text>
+
+            <!-- Share → Web -->
+            <line class="fc-edge" x1="640" y1="248" x2="640" y2="326" marker-end="url(#arr-b)"/>
+            <text class="fc-t-sub" x="654" y="292" style="fill:#60a5fa;font-weight:700;">reads</text>
+
+            <!-- ── Widget ── -->
+            <rect class="fc-node-ok" x="20" y="326" width="420" height="80" rx="0"/>
+            <text class="fc-t-main ok"  x="230" y="350" text-anchor="middle">Desktop Widget</text>
+            <text class="fc-t-sub"      x="230" y="366" text-anchor="middle">widget.py · pywebview · always-on-top · 400×280</text>
+            <text class="fc-t-sub"      x="230" y="382" text-anchor="middle">ThreadPoolExecutor(max_workers=6) · 5s refresh · last_connected cache</text>
+            <text class="fc-t-sub"      x="230" y="398" text-anchor="middle">Launch: widget.vbs → widget.bat → pythonw (no console)</text>
+
+            <!-- ── Web Server ── -->
+            <rect class="fc-node-process" x="460" y="326" width="380" height="80" rx="0"/>
+            <text class="fc-t-main" x="650" y="350" text-anchor="middle">Web Dashboard</text>
+            <text class="fc-t-sub"  x="650" y="366" text-anchor="middle">app.py · FastAPI · GET /api/status · GET /</text>
+            <text class="fc-t-sub"  x="650" y="382" text-anchor="middle">10s auto-refresh · any browser over VPN</text>
+            <text class="fc-t-sub"  x="650" y="398" text-anchor="middle">stale guard applied server-side</text>
+          </svg>
+        </div>
+        <p class="fc-zoom-hint">click to zoom in</p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-label">// status_reference</p>
+      <div class="feat-grid">
+        <div class="feat-card" style="border-left-color:var(--green);">
+          <div class="feat-tag" style="color:var(--green);">AVAILABLE</div>
+          <div class="feat-title">No active session</div>
+          <div class="feat-desc"><code>remoting_host.exe</code> not running, or running with no established TCP connection on its PID. Bot is online and idle.</div>
+        </div>
+        <div class="feat-card" style="border-left-color:var(--red);">
+          <div class="feat-tag" style="color:var(--red);">IN_USE</div>
+          <div class="feat-title">Active remote session</div>
+          <div class="feat-desc">Process running AND has at least one established TCP connection — a Google Remote Desktop session is currently active.</div>
+        </div>
+        <div class="feat-card" style="border-left-color:#555;">
+          <div class="feat-tag" style="color:#888;">OFFLINE</div>
+          <div class="feat-title">Unreachable or stale</div>
+          <div class="feat-desc">JSON file missing (3+ consecutive misses), or mtime older than 30 seconds. Bot is off, network is down, or Task Scheduler stopped.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ PAGE 3 — CODE & HIGHLIGHTS ══ -->
+<div class="page" id="page-2">
+  <div class="page-inner">
+
+    <div class="sec">
+      <p class="sec-label">// code_highlights · monitor_BotN_example.ps1 · widget_example.py · app_example.py</p>
+      <div class="code-grid">
+
+        <div class="code-card">
+          <div class="code-card-hdr">
+            <span class="code-card-title">GRD Session Detection</span>
+            <span class="code-tag">monitor_BotN_example.ps1</span>
+          </div>
+          <pre><span class="cm"># Process alone is not enough —</span>
+<span class="cm"># remoting_host stays alive between sessions.</span>
+<span class="cm"># Confirm an active TCP connection on its PID.</span>
+<span class="vr">$processes</span> = Get-Process -Name <span class="st">"remoting_host"</span> `
+    -ErrorAction SilentlyContinue
+
+<span class="kw">if</span> (<span class="vr">$processes</span>) {
+    <span class="vr">$pids</span> = <span class="vr">$processes</span> | Select-Object -ExpandProperty Id
+    <span class="vr">$conn</span> = Get-NetTCPConnection `
+        -State Established `
+        -ErrorAction SilentlyContinue |
+        Where-Object { <span class="vr">$pids</span> -contains <span class="vr">$_.OwningProcess</span> }
+    <span class="kw">if</span> (<span class="vr">$conn</span>) { <span class="vr">$status</span> = <span class="st">"IN_USE"</span> }
+}</pre>
+        </div>
+
+        <div class="code-card">
+          <div class="code-card-hdr">
+            <span class="code-card-title">Stale Guard + Fail Counter</span>
+            <span class="code-tag">widget_example.py · Api._read_bot()</span>
+          </div>
+          <pre><span class="cm"># 3 consecutive misses before flipping OFFLINE —</span>
+<span class="cm"># absorbs brief network blips without false alerts.</span>
+<span class="kw">if not</span> file.exists():
+    fail_count[bot] += <span class="nm">1</span>
+    status = <span class="st">"OFFLINE"</span> <span class="kw">if</span> fail_count[bot] >= <span class="nm">3</span> \
+        <span class="kw">else</span> (prev_status[bot] <span class="kw">or</span> <span class="st">"OFFLINE"</span>)
+    <span class="kw">return</span> {...}
+
+<span class="cm"># Use mtime, not the JSON timestamp —</span>
+<span class="cm"># mtime reflects actual write time regardless of content.</span>
+mtime = datetime.fromtimestamp(file.stat().st_mtime)
+<span class="kw">if</span> (datetime.now() - mtime).total_seconds() > <span class="nm">30</span>:
+    data[<span class="st">"status"</span>] = <span class="st">"OFFLINE"</span></pre>
+        </div>
+
+        <div class="code-card">
+          <div class="code-card-hdr">
+            <span class="code-card-title">last_connected Tracking</span>
+            <span class="code-tag">widget_example.py · Api._read_bot()</span>
+          </div>
+          <pre><span class="cm"># Capture the exact moment a session ends.</span>
+<span class="cm"># Cache persists across poll cycles in-process.</span>
+<span class="kw">if</span> last_connected_cache[bot] <span class="kw">is None</span>:
+    last_connected_cache[bot] = data.get(<span class="st">"last_connected"</span>)
+
+<span class="kw">if</span> (prev_status[bot] == <span class="st">"IN_USE"</span>
+        <span class="kw">and</span> data[<span class="st">"status"</span>] != <span class="st">"IN_USE"</span>):
+    last_connected_cache[bot] = mtime.strftime(
+        <span class="st">"%Y-%m-%d %H:%M:%S"</span>
+    )
+prev_status[bot] = data[<span class="st">"status"</span>]</pre>
+        </div>
+
+        <div class="code-card">
+          <div class="code-card-hdr">
+            <span class="code-card-title">Concurrent Read via ThreadPoolExecutor</span>
+            <span class="code-tag">widget_example.py · Api.get_status()</span>
+          </div>
+          <pre><span class="cm"># Read all 6 bot files in parallel —</span>
+<span class="cm"># network share I/O would serialize otherwise.</span>
+<span class="kw">def</span> get_status(<span class="vr">self</span>):
+    <span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="nm">6</span>) <span class="kw">as</span> executor:
+        results = list(
+            executor.map(<span class="vr">self</span>._read_bot, BOTS)
+        )
+    <span class="kw">return</span> results</pre>
+        </div>
+
+        <div class="code-card">
+          <div class="code-card-hdr">
+            <span class="code-card-title">FastAPI Status Endpoint</span>
+            <span class="code-tag">app_example.py · read_bot()</span>
+          </div>
+          <pre><span class="cm"># Web server reads JSON timestamp from content,</span>
+<span class="cm"># not mtime — stateless per-request, no cache.</span>
+<span class="kw">def</span> read_bot(bot):
+    file = STATUS_DIR / <span class="st">f"</span><span class="vr">{bot}</span><span class="st">.json"</span>
+    <span class="kw">if not</span> file.exists():
+        <span class="kw">return</span> {<span class="st">"bot"</span>: bot, <span class="st">"status"</span>: <span class="st">"OFFLINE"</span>, ...}
+    <span class="kw">try</span>:
+        data = json.loads(file.read_text(encoding=<span class="st">"utf-8-sig"</span>))
+        updated = datetime.strptime(
+            data[<span class="st">"updated"</span>], <span class="st">"%Y-%m-%d %H:%M:%S"</span>
+        )
+        <span class="kw">if</span> (datetime.now() - updated).total_seconds() > <span class="nm">30</span>:
+            data[<span class="st">"status"</span>] = <span class="st">"OFFLINE"</span>
+        data.setdefault(<span class="st">"last_connected"</span>, <span class="kw">None</span>)
+        <span class="kw">return</span> data
+    <span class="kw">except</span>:
+        <span class="kw">return</span> {<span class="st">"bot"</span>: bot, <span class="st">"status"</span>: <span class="st">"ERROR"</span>, ...}
+
+<span class="nm">@app</span>.get(<span class="st">"/api/status"</span>)
+<span class="kw">def</span> status():
+    <span class="kw">return</span> [read_bot(b) <span class="kw">for</span> b <span class="kw">in</span> BOTS]</pre>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-label">// dev_process · Claude Code Conversations</p>
+      <div class="convo-grid">
+
+        <div class="convo-card">
+          <div class="convo-hdr">Detection Precision: Process vs TCP</div>
+          <div class="convo-body">
+            <div class="msg">
+              <div class="avatar avatar-u">TJ</div>
+              <div class="bubble">Just checking <code>remoting_host</code> is not enough — the process stays alive between sessions. Need to confirm an actual TCP connection on that PID.</div>
+            </div>
+            <div class="msg">
+              <div class="avatar avatar-c">C</div>
+              <div class="bubble bubble-c">Added <code>Get-NetTCPConnection -State Established</code> filtered by <code>OwningProcess</code>. Status is only <code>IN_USE</code> when both conditions are true simultaneously.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="convo-card">
+          <div class="convo-hdr">mtime vs JSON Timestamp for Stale Check</div>
+          <div class="convo-body">
+            <div class="msg">
+              <div class="avatar avatar-u">TJ</div>
+              <div class="bubble">Should the 30s stale check use the <code>updated</code> field inside the JSON, or the file's mtime?</div>
+            </div>
+            <div class="msg">
+              <div class="avatar avatar-c">C</div>
+              <div class="bubble bubble-c">mtime is safer — it reflects when the file was actually written, not a value the bot script controls. A bug in the script that writes a wrong timestamp won't fool the stale guard.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="convo-card">
+          <div class="convo-hdr">Silent Launch via VBS</div>
+          <div class="convo-body">
+            <div class="msg">
+              <div class="avatar avatar-u">TJ</div>
+              <div class="bubble"><code>widget.bat</code> flashes a console window on launch. Need to start it with no visible terminal and no taskbar entry.</div>
+            </div>
+            <div class="msg">
+              <div class="avatar avatar-c">C</div>
+              <div class="bubble bubble-c">Added <code>widget.vbs</code>: <code>WScript.Shell.Run</code> with window style <code>0</code> hides the window entirely. Double-clicking VBS starts the widget silently.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="convo-card">
+          <div class="convo-hdr">Fail Counter to Absorb Network Blips</div>
+          <div class="convo-body">
+            <div class="msg">
+              <div class="avatar avatar-u">TJ</div>
+              <div class="bubble">The network share occasionally has a brief hiccup and the file disappears for one read cycle. Don't want that to immediately flip the status to OFFLINE.</div>
+            </div>
+            <div class="msg">
+              <div class="avatar avatar-c">C</div>
+              <div class="bubble bubble-c">Added a per-bot <code>fail_count</code>. Only flips to OFFLINE after 3 consecutive misses. Single-miss blips show the previous known status instead.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  Bot Availability Monitor &nbsp;·&nbsp; Taehun Jang &nbsp;·&nbsp; Python · PowerShell · Claude Code
+</footer>
+
+<script>
+  function syncTabsTop() {
+    const hdr = document.querySelector('.hdr');
+    const tabs = document.querySelector('.tabs-wrap');
+    if (hdr && tabs) tabs.style.top = hdr.offsetHeight + 'px';
+  }
+  syncTabsTop();
+  window.addEventListener('resize', syncTabsTop);
+
+  function switchTab(i) {
+    document.querySelectorAll('.tab').forEach((t, j) => t.classList.toggle('active', j === i));
+    document.querySelectorAll('.page').forEach((p, j) => p.classList.toggle('active', j === i));
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.querySelectorAll('.page.active .anim-fade-up').forEach(el => {
+      el.style.animation = 'none'; el.offsetHeight; el.style.animation = '';
+    });
+    if (i === 1) {
+      // Architecture diagram tab — no animated edges
+    }
+    if (i === 2) initPage2();
+  }
+
+  function initCodeCard(card) {
+    if (card._typingInit) return;
+    card._typingInit = true;
+    const pre = card.querySelector('pre');
+    if (!pre) return;
+    pre.querySelectorAll('span[class]').forEach(s => { s.dataset.color = getComputedStyle(s).color; });
+    function wrapChars(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const frag = document.createDocumentFragment();
+        for (const ch of node.textContent) { const s = document.createElement('span'); s.className = 'char'; s.textContent = ch; frag.appendChild(s); }
+        node.replaceWith(frag);
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        Array.from(node.childNodes).forEach(wrapChars);
+        if (node.dataset.color) node.querySelectorAll('.char:not([data-color])').forEach(c => { c.dataset.color = node.dataset.color; });
+      }
+    }
+    Array.from(pre.childNodes).forEach(wrapChars);
+    pre.querySelectorAll('.char:not([data-color])').forEach(c => { c.dataset.color = '#e6edf3'; });
+    const cursor = document.createElement('span'); cursor.className = 'type-cursor'; cursor.style.display = 'none'; pre.appendChild(cursor);
+    card._chars = Array.from(pre.querySelectorAll('.char'));
+    card._cursor = cursor; card._typing = false;
+  }
+
+  function replayCode(card) {
+    if (card._typing) return;
+    card._typing = true;
+    card._cursor.style.display = 'inline-block';
+    card._chars.forEach(c => { c.style.color = 'transparent'; });
+    const batch = Math.max(1, Math.floor(card._chars.length / 280));
+    let i = 0;
+    function tick() {
+      if (i >= card._chars.length) { card._cursor.style.display = 'none'; card._typing = false; return; }
+      for (let b = 0; b < batch && i < card._chars.length; b++, i++) card._chars[i].style.color = card._chars[i].dataset.color;
+      setTimeout(tick, 10);
+    }
+    setTimeout(tick, 80);
+  }
+
+  function initConvoCard(card) {
+    if (card._typingInit) return;
+    card._typingInit = true;
+    card._msgs = Array.from(card.querySelectorAll('.msg'));
+    card._typing = false;
+  }
+
+  function replayConvo(card) {
+    if (card._typing) return;
+    card._typing = true;
+    card._msgs.forEach(m => m.classList.remove('visible'));
+    card._msgs.forEach((m, i) => { setTimeout(() => { m.classList.add('visible'); if (i === card._msgs.length - 1) card._typing = false; }, 150 + i * 480); });
+  }
+
+  let page2Inited = false;
+  function initPage2() {
+    if (page2Inited) return;
+    page2Inited = true;
+    document.querySelectorAll('.code-card').forEach(initCodeCard);
+    document.querySelectorAll('.convo-card .msg').forEach(m => m.classList.add('visible'));
+    document.querySelectorAll('.convo-card').forEach(initConvoCard);
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target; observer.unobserve(el);
+        if (el.classList.contains('code-card')) replayCode(el);
+        if (el.classList.contains('convo-card')) replayConvo(el);
+      });
+    }, { threshold: 0.35 });
+    document.querySelectorAll('.code-card, .convo-card').forEach(c => observer.observe(c));
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const container = document.querySelector('.fc-svg-container');
+    const hint = document.querySelector('.fc-zoom-hint');
+    function getOrigin(e) {
+      const rect = container.getBoundingClientRect();
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      return `${((cx - rect.left) / rect.width * 100).toFixed(1)}% ${((cy - rect.top) / rect.height * 100).toFixed(1)}%`;
+    }
+    function toggleZoom(e) {
+      e.preventDefault();
+      const zooming = !container.classList.contains('zoomed');
+      if (zooming) container.style.transformOrigin = getOrigin(e);
+      container.classList.toggle('zoomed', zooming);
+      if (hint) hint.textContent = zooming ? 'click to zoom out' : 'click to zoom in';
+    }
+    if (container) {
+      container.addEventListener('click', toggleZoom);
+      container.addEventListener('touchstart', toggleZoom, { passive: false });
+    }
+  });
+</script>
+
+</body>
+</html>
