@@ -97,9 +97,14 @@
 
     /* ── Timeline ── */
     @keyframes glow-h-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.5), 0 0 10px rgba(74,222,128,.2); } 50% { box-shadow: 0 0 0 7px rgba(74,222,128,0), 0 0 22px rgba(74,222,128,.5); } }
-    .station-track-h { display: flex; align-items: center; width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 24px 28px; }
-    .station-h { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 110px; flex-shrink: 0; }
-    .station-h-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-deep); display: flex; align-items: center; justify-content: center; z-index: 1; }
+    .station-track-h { display: flex; align-items: center; gap: 0; width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 24px 28px; }
+    .station-h { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 120px; position: relative; flex-shrink: 0; }
+    @media (max-width: 600px) {
+      .station-track-h { flex-wrap: wrap; padding: 16px 12px; row-gap: 20px; }
+      .station-h { min-width: calc(50% - 8px); flex-shrink: 0; gap: 6px; }
+      .station-h-rail { display: none; }
+    }
+    .station-h-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-deep); display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; }
     .station-h-dot-inner { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
     .station-h.done .station-h-dot { border-color: rgba(96,165,250,.6); background: rgba(96,165,250,.08); }
     .station-h.done .station-h-dot-inner { background: var(--blue); }
@@ -235,7 +240,7 @@
   </div>
   <div class="hdr-right">
     <span class="hdr-pill pill-green"><span class="dot"></span>ACTIVE</span>
-    <span class="hdr-pill pill-dim">6 bots · 5s</span>
+    <span class="hdr-pill pill-dim">v1.7 · 6 bots · 5s</span>
   </div>
 </header>
 
@@ -263,7 +268,7 @@
           <div class="metric-sub">per bot PC</div>
         </div>
         <div class="metric m-yellow anim-fade-up d3">
-          <div class="metric-val">30s</div>
+          <div class="metric-val">90s</div>
           <div class="metric-key">stale_threshold</div>
           <div class="metric-sub">mtime → OFFLINE</div>
         </div>
@@ -319,7 +324,7 @@
         <div class="output-card anim-fade-up d2">
           <div class="output-title">Desktop Widget (always-on-top)</div>
           <div class="out-row"><span class="out-key">refresh</span><span class="out-val">every 5 seconds via ThreadPoolExecutor</span></div>
-          <div class="out-row"><span class="out-key">stale</span><span class="out-val">mtime &gt; 30s → force OFFLINE</span></div>
+          <div class="out-row"><span class="out-key">stale</span><span class="out-val">mtime &gt; 90s → force OFFLINE, auto-recover via .tmp</span></div>
           <div class="out-row"><span class="out-key">last use</span><span class="out-val">IN_USE → other transition timestamp</span></div>
           <div class="out-row"><span class="out-key">launch</span><span class="out-val">VBS → BAT → pythonw (no console)</span></div>
         </div>
@@ -336,8 +341,8 @@
         </div>
         <div class="feat-card anim-fade-up d2">
           <div class="feat-tag">RESILIENCE</div>
-          <div class="feat-title">Atomic File Write + Fail Counter</div>
-          <div class="feat-desc">Each write goes to <code>.tmp</code> then renames atomically — prevents partial reads. Widget uses a 3-miss fail counter before flipping to OFFLINE, absorbing brief network blips.</div>
+          <div class="feat-title">Atomic Write + .tmp Auto-Recovery</div>
+          <div class="feat-desc">Each write goes to <code>.tmp</code> then renames atomically. On OFFLINE or parse failure, widget checks if <code>.tmp</code> is newer and auto-recovers via <code>os.replace</code> — handles SMB file lock gracefully.</div>
         </div>
         <div class="feat-card anim-fade-up d3">
           <div class="feat-tag">UX</div>
@@ -435,7 +440,7 @@
             <rect class="fc-node-start" x="20" y="178" width="820" height="70" rx="4"/>
             <text class="fc-t-main start" x="430" y="203" text-anchor="middle">Network Share</text>
             <text class="fc-t-sub"        x="430" y="220" text-anchor="middle">Bot0.json · Bot1.json · Bot2.json · Bot3.json · Bot4.json · Bot5.json</text>
-            <text class="fc-t-sub"        x="430" y="236" text-anchor="middle">atomic write (tmp → rename) · stale guard: mtime &gt; 30s → OFFLINE</text>
+            <text class="fc-t-sub"        x="430" y="236" text-anchor="middle">atomic write (tmp → rename) · stale guard: mtime &gt; 90s → OFFLINE · auto-recover via .tmp</text>
 
             <!-- ── Share → Readers ── -->
             <!-- Share → Widget -->
@@ -481,7 +486,7 @@
         <div class="feat-card" style="border-left-color:#555;">
           <div class="feat-tag" style="color:#888;">OFFLINE</div>
           <div class="feat-title">Unreachable or stale</div>
-          <div class="feat-desc">JSON file missing (3+ consecutive misses), or mtime older than 30 seconds. Bot is off, network is down, or Task Scheduler stopped.</div>
+          <div class="feat-desc">JSON file missing (3+ consecutive misses), or mtime older than 90 seconds. Bot is off, network is down, or Task Scheduler stopped.</div>
         </div>
       </div>
     </div>
@@ -520,21 +525,24 @@
 
         <div class="code-card">
           <div class="code-card-hdr">
-            <span class="code-card-title">Stale Guard + Fail Counter</span>
+            <span class="code-card-title">Stale Guard + .tmp Auto-Recovery</span>
             <span class="code-tag">widget_example.py · Api._read_bot()</span>
           </div>
-          <pre><span class="cm"># 3 consecutive misses before flipping OFFLINE —</span>
-<span class="cm"># absorbs brief network blips without false alerts.</span>
-<span class="kw">if not</span> file.exists():
-    fail_count[bot] += <span class="nm">1</span>
-    status = <span class="st">"OFFLINE"</span> <span class="kw">if</span> fail_count[bot] >= <span class="nm">3</span> \
-        <span class="kw">else</span> (prev_status[bot] <span class="kw">or</span> <span class="st">"OFFLINE"</span>)
-    <span class="kw">return</span> {...}
+          <pre><span class="cm"># mtime > 90s or parse failure → try .tmp recovery.</span>
+<span class="cm"># os.replace avoids SMB file-lock (WinError 32).</span>
+need_recover = data <span class="kw">is None or</span> data[<span class="st">"status"</span>] == <span class="st">"OFFLINE"</span>
 
-<span class="cm"># Use mtime, not the JSON timestamp —</span>
-<span class="cm"># mtime reflects actual write time regardless of content.</span>
+<span class="kw">if</span> need_recover <span class="kw">and</span> tmp.exists():
+    tmp_mtime  = datetime.fromtimestamp(tmp.stat().st_mtime)
+    json_mtime = datetime.fromtimestamp(file.stat().st_mtime)
+    <span class="kw">if</span> tmp_mtime > json_mtime:
+        os.replace(str(tmp), str(file))
+        recovered = self._read_from(bot, file)
+        <span class="kw">if</span> recovered <span class="kw">is not None</span>:
+            <span class="kw">return</span> recovered
+
 mtime = datetime.fromtimestamp(file.stat().st_mtime)
-<span class="kw">if</span> (datetime.now() - mtime).total_seconds() > <span class="nm">30</span>:
+<span class="kw">if</span> (datetime.now() - mtime).total_seconds() > <span class="nm">90</span>:
     data[<span class="st">"status"</span>] = <span class="st">"OFFLINE"</span></pre>
         </div>
 
@@ -649,15 +657,15 @@ prev_status[bot] = data[<span class="st">"status"</span>]</pre>
         </div>
 
         <div class="convo-card">
-          <div class="convo-hdr">Fail Counter to Absorb Network Blips</div>
+          <div class="convo-hdr">OFFLINE Auto-Recovery via .tmp</div>
           <div class="convo-body">
             <div class="msg">
               <div class="avatar avatar-u">TJ</div>
-              <div class="bubble">The network share occasionally has a brief hiccup and the file disappears for one read cycle. Don't want that to immediately flip the status to OFFLINE.</div>
+              <div class="bubble">When <code>.json</code> is stale (OFFLINE) or fails to parse, and <code>.tmp</code> is newer — replace <code>.json</code> with <code>.tmp</code> automatically instead of waiting.</div>
             </div>
             <div class="msg">
               <div class="avatar avatar-c">C</div>
-              <div class="bubble bubble-c">Added a per-bot <code>fail_count</code>. Only flips to OFFLINE after 3 consecutive misses. Single-miss blips show the previous known status instead.</div>
+              <div class="bubble bubble-c">Used <code>os.replace</code> instead of <code>unlink + rename</code> — SMB held a file lock (WinError 32) on the old <code>.json</code>, but <code>os.replace</code> overwrites atomically without needing to delete first.</div>
             </div>
           </div>
         </div>

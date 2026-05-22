@@ -1,4 +1,4 @@
-# GRD Bot Availability Monitor - Widget Guide
+# GBD Bot Availability Monitor - Widget Guide  (v1.7)
 
 ## Requirements
 - Python installed
@@ -12,7 +12,7 @@ Required packages (pywebview, pillow) will be installed automatically on first r
 
 ## Features
 - Real-time status of 6 bots (Bot0~Bot5)
-- Auto-refreshes every 10 seconds
+- Auto-refreshes every 5 seconds
 - Manual refresh via Refresh button
 - Always on top
 

@@ -1,5 +1,5 @@
 """
-widget_example.py
+widget_example.py  —  v1.7
 
 Reference implementation of the desktop widget.
 Replace STATUS_DIR with your actual network share path before use.
@@ -8,6 +8,7 @@ Replace STATUS_DIR with your actual network share path before use.
 import webview
 import json
 import os
+import shutil
 from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -42,55 +43,89 @@ def create_icon():
 
 
 prev_status = {bot: None for bot in BOTS}
-last_connected_cache = {bot: None for bot in BOTS}
 fail_count = {bot: 0 for bot in BOTS}
+last_mtime = {bot: None for bot in BOTS}
 
 
 class Api:
+    def _apply_mtime_guard(self, bot, mtime):
+        if last_mtime[bot] and mtime < last_mtime[bot]:
+            return last_mtime[bot]
+        last_mtime[bot] = mtime
+        return mtime
+
+    def _read_from(self, bot, path):
+        try:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime)
+            mtime = self._apply_mtime_guard(bot, mtime)
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            if (datetime.now() - mtime).total_seconds() > 90:
+                data["status"] = "OFFLINE"
+            prev_status[bot] = data["status"]
+            data["updated"] = mtime.strftime("%Y-%m-%d %H:%M:%S")
+            return data
+        except Exception:
+            return None
+
     def _read_bot(self, bot):
         file = STATUS_DIR / f"{bot}.json"
         tmp  = STATUS_DIR / f"{bot}.json.tmp"
 
-        # .json 없으면 .tmp fallback 시도
-        if not file.exists():
-            if tmp.exists():
-                file = tmp
-            else:
-                fail_count[bot] += 1
-                status = "OFFLINE" if fail_count[bot] >= 3 else (prev_status[bot] or "OFFLINE")
-                return {"bot": bot, "status": status, "updated": None, "last_connected": last_connected_cache[bot]}
+        # 1. .json 읽기 시도
+        if file.exists():
+            data = self._read_from(bot, file)
+            need_recover = data is None or data["status"] == "OFFLINE"
 
-        try:
-            fail_count[bot] = 0
-            mtime = datetime.fromtimestamp(file.stat().st_mtime)
-            data = json.loads(file.read_text(encoding="utf-8-sig"))
-            if (datetime.now() - mtime).total_seconds() > 30:
-                data["status"] = "OFFLINE"
-            if last_connected_cache[bot] is None:
-                last_connected_cache[bot] = data.get("last_connected")
-            if prev_status[bot] == "IN_USE" and data["status"] != "IN_USE":
-                last_connected_cache[bot] = mtime.strftime("%Y-%m-%d %H:%M:%S")
-            prev_status[bot] = data["status"]
-            data["updated"] = mtime.strftime("%Y-%m-%d %H:%M:%S")
-            data["last_connected"] = last_connected_cache[bot]
-            return data
-        except:
-            # .json 읽기 실패(잠금 등) 시 .tmp fallback
-            if tmp.exists():
+            if need_recover and tmp.exists():
                 try:
-                    mtime = datetime.fromtimestamp(tmp.stat().st_mtime)
-                    data = json.loads(tmp.read_text(encoding="utf-8-sig"))
-                    if (datetime.now() - mtime).total_seconds() > 30:
-                        data["status"] = "OFFLINE"
-                    prev_status[bot] = data["status"]
-                    data["updated"] = mtime.strftime("%Y-%m-%d %H:%M:%S")
-                    data["last_connected"] = last_connected_cache[bot]
-                    return data
-                except:
-                    pass
-            return {"bot": bot, "status": "ERROR", "updated": None, "last_connected": last_connected_cache[bot]}
+                    tmp_mtime  = datetime.fromtimestamp(tmp.stat().st_mtime)
+                    json_mtime = datetime.fromtimestamp(file.stat().st_mtime) if file.exists() else None
+                except Exception:
+                    tmp_mtime, json_mtime = None, None
 
-    def get_status(self):
+                if tmp_mtime and (json_mtime is None or tmp_mtime > json_mtime):
+                    try:
+                        os.replace(str(tmp), str(file))
+                        recovered = self._read_from(bot, file)
+                        if recovered is not None:
+                            fail_count[bot] = 0
+                            return recovered
+                    except Exception:
+                        pass
+
+            if data is not None:
+                fail_count[bot] = 0
+                return data
+
+        # 2. .json 없으면 fail_count 누적
+        fail_count[bot] += 1
+
+        # 3. 12회 이상이면 .tmp → .json 복구 시도
+        if fail_count[bot] >= 12 and tmp.exists():
+            try:
+                shutil.copy2(str(tmp), str(file))
+                data = self._read_from(bot, file)
+                if data is not None:
+                    fail_count[bot] = 0
+                    return data
+            except Exception:
+                pass
+
+        # 4. 1~12회 → prev_status 유지
+        if fail_count[bot] <= 12:
+            return {"bot": bot, "status": prev_status[bot] or "CALCULATING...", "updated": None, "last_connected": None}
+        # 5. 13~19회 → CALCULATING
+        if fail_count[bot] < 20:
+            return {"bot": bot, "status": "CALCULATING...", "updated": None, "last_connected": None}
+        # 6. 20회 이상 → ERROR
+        return {"bot": bot, "status": "ERROR", "updated": None, "last_connected": None}
+
+    def get_status(self, reset=False):
+        if reset:
+            for bot in BOTS:
+                prev_status[bot] = None
+                last_mtime[bot] = None
+                fail_count[bot] = 0
         with ThreadPoolExecutor(max_workers=6) as executor:
             results = list(executor.map(self._read_bot, BOTS))
         return results
@@ -163,14 +198,14 @@ HTML = """
 <body>
 <div class="header">
   <span>Bot Status</span>
-  <button class="refresh-btn" onclick="load()">Refresh</button>
+  <button class="refresh-btn" onclick="load(true)">Refresh</button>
 </div>
 <div id="list"></div>
 <div class="refresh-time" id="time"></div>
 <script>
-  async function load() {
+  async function load(refreshing = false) {
     try {
-      const data = await window.pywebview.api.get_status();
+      const data = await window.pywebview.api.get_status(refreshing);
       document.getElementById("list").innerHTML = data.map(b => `
         <div class="row">
           <div class="row-top">
