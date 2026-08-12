@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Bot Availability Monitor — Portfolio</title>
+  <title>Bot Availability Monitor · Portfolio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -342,7 +342,7 @@
         <div class="feat-card anim-fade-up d2">
           <div class="feat-tag">RESILIENCE</div>
           <div class="feat-title">Atomic Write + .tmp Auto-Recovery</div>
-          <div class="feat-desc">Each write goes to <code>.tmp</code> then renames atomically. On OFFLINE or parse failure, widget checks if <code>.tmp</code> is newer and auto-recovers via <code>os.replace</code> — handles SMB file lock gracefully.</div>
+          <div class="feat-desc">Each write goes to <code>.tmp</code> then renames atomically. On OFFLINE or parse failure, widget checks if <code>.tmp</code> is newer and auto-recovers via <code>os.replace</code>, handling SMB file locks gracefully.</div>
         </div>
         <div class="feat-card anim-fade-up d3">
           <div class="feat-tag">UX</div>
@@ -481,7 +481,7 @@
         <div class="feat-card" style="border-left-color:var(--red);">
           <div class="feat-tag" style="color:var(--red);">IN_USE</div>
           <div class="feat-title">Active remote session</div>
-          <div class="feat-desc">Process running AND has at least one established TCP connection — a Google Remote Desktop session is currently active.</div>
+          <div class="feat-desc">Process running AND has at least one established TCP connection: a Google Remote Desktop session is currently active.</div>
         </div>
         <div class="feat-card" style="border-left-color:#555;">
           <div class="feat-tag" style="color:#888;">OFFLINE</div>
@@ -507,7 +507,7 @@
             <span class="code-card-title">GRD Session Detection</span>
             <span class="code-tag">monitor_BotN_example.ps1</span>
           </div>
-          <pre><span class="cm"># Process alone is not enough —</span>
+          <pre><span class="cm"># Process alone is not enough:</span>
 <span class="cm"># remoting_host stays alive between sessions.</span>
 <span class="cm"># Confirm an active TCP connection on its PID.</span>
 <span class="vr">$processes</span> = Get-Process -Name <span class="st">"remoting_host"</span> `
@@ -569,7 +569,7 @@ prev_status[bot] = data[<span class="st">"status"</span>]</pre>
             <span class="code-card-title">Concurrent Read via ThreadPoolExecutor</span>
             <span class="code-tag">widget_example.py · Api.get_status()</span>
           </div>
-          <pre><span class="cm"># Read all 6 bot files in parallel —</span>
+          <pre><span class="cm"># Read all 6 bot files in parallel;</span>
 <span class="cm"># network share I/O would serialize otherwise.</span>
 <span class="kw">def</span> get_status(<span class="vr">self</span>):
     <span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="nm">6</span>) <span class="kw">as</span> executor:
@@ -585,7 +585,7 @@ prev_status[bot] = data[<span class="st">"status"</span>]</pre>
             <span class="code-tag">app_example.py · read_bot()</span>
           </div>
           <pre><span class="cm"># Web server reads JSON timestamp from content,</span>
-<span class="cm"># not mtime — stateless per-request, no cache.</span>
+<span class="cm"># not mtime: stateless per-request, no cache.</span>
 <span class="kw">def</span> read_bot(bot):
     file = STATUS_DIR / <span class="st">f"</span><span class="vr">{bot}</span><span class="st">.json"</span>
     <span class="kw">if not</span> file.exists():
@@ -619,7 +619,7 @@ prev_status[bot] = data[<span class="st">"status"</span>]</pre>
           <div class="convo-body">
             <div class="msg">
               <div class="avatar avatar-u">TJ</div>
-              <div class="bubble">Just checking <code>remoting_host</code> is not enough — the process stays alive between sessions. Need to confirm an actual TCP connection on that PID.</div>
+              <div class="bubble">Just checking <code>remoting_host</code> is not enough: the process stays alive between sessions. Need to confirm an actual TCP connection on that PID.</div>
             </div>
             <div class="msg">
               <div class="avatar avatar-c">C</div>
@@ -637,7 +637,7 @@ prev_status[bot] = data[<span class="st">"status"</span>]</pre>
             </div>
             <div class="msg">
               <div class="avatar avatar-c">C</div>
-              <div class="bubble bubble-c">mtime is safer — it reflects when the file was actually written, not a value the bot script controls. A bug in the script that writes a wrong timestamp won't fool the stale guard.</div>
+              <div class="bubble bubble-c">mtime is safer: it reflects when the file was actually written, not a value the bot script controls. A bug in the script that writes a wrong timestamp won't fool the stale guard.</div>
             </div>
           </div>
         </div>
@@ -661,11 +661,11 @@ prev_status[bot] = data[<span class="st">"status"</span>]</pre>
           <div class="convo-body">
             <div class="msg">
               <div class="avatar avatar-u">TJ</div>
-              <div class="bubble">When <code>.json</code> is stale (OFFLINE) or fails to parse, and <code>.tmp</code> is newer — replace <code>.json</code> with <code>.tmp</code> automatically instead of waiting.</div>
+              <div class="bubble">When <code>.json</code> is stale (OFFLINE) or fails to parse, and <code>.tmp</code> is newer, replace <code>.json</code> with <code>.tmp</code> automatically instead of waiting.</div>
             </div>
             <div class="msg">
               <div class="avatar avatar-c">C</div>
-              <div class="bubble bubble-c">Used <code>os.replace</code> instead of <code>unlink + rename</code> — SMB held a file lock (WinError 32) on the old <code>.json</code>, but <code>os.replace</code> overwrites atomically without needing to delete first.</div>
+              <div class="bubble bubble-c">Used <code>os.replace</code> instead of <code>unlink + rename</code>: SMB held a file lock (WinError 32) on the old <code>.json</code>, but <code>os.replace</code> overwrites atomically without needing to delete first.</div>
             </div>
           </div>
         </div>
