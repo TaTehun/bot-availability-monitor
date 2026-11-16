@@ -8,8 +8,11 @@ $botName  = "BotN"   # e.g. "Bot0", "Bot1", ...
 $sharePath = "\\your-server\YourShare\YourFolder\Bot Availability Monitor"
 $path      = "$sharePath\$botName.json"
 
-$prevStatus   = ""
+$prevStatus    = ""
 $lastConnected = $null
+$scriptStamp   = (Get-Item $PSCommandPath).LastWriteTime
+$emptyCount    = 0
+$emptyLimit    = 6   # 6 x 5s = 30s of no session before AVAILABLE
 
 # Load last_connected from existing file on startup
 if (Test-Path $path) {
@@ -23,14 +26,16 @@ while ($true) {
     $status = "AVAILABLE"
 
     try {
-        $processes = Get-Process -Name "remoting_host" -ErrorAction SilentlyContinue
-
-        if ($processes) {
-            $pids = $processes | Select-Object -ExpandProperty Id
-            $conn = Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue |
-                Where-Object { $pids -contains $_.OwningProcess }
-
-            if ($conn) {
+        # remoting_desktop.exe exists only while a session is connected
+        $desktop = Get-Process -Name "remoting_desktop" -ErrorAction SilentlyContinue
+        if ($desktop) {
+            $status = "IN_USE"
+            $emptyCount = 0
+        }
+        else {
+            # Debounce: keep IN_USE through brief gaps (reconnect, lock, session switch)
+            $emptyCount++
+            if ($prevStatus -eq "IN_USE" -and $emptyCount -lt $emptyLimit) {
                 $status = "IN_USE"
             }
         }
@@ -45,7 +50,7 @@ while ($true) {
     }
     $prevStatus = $status
 
-    # Atomic write: tmp → rename prevents partial reads by the widget
+    # Atomic write: tmp -> rename prevents partial reads by the widget
     try {
         $json = @{
             bot            = $botName
@@ -59,8 +64,11 @@ while ($true) {
         Move-Item -Path $tmp -Destination $path -Force
     }
     catch {
-        # Write failure — keep looping; stale guard on reader side handles it
+        # Write failure: keep looping; stale guard on reader side handles it
     }
+
+    # Script file changed: exit so the 1-minute task trigger relaunches the new version
+    if ((Get-Item $PSCommandPath).LastWriteTime -ne $scriptStamp) { exit }
 
     Start-Sleep -Seconds 5
 }

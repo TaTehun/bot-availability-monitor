@@ -14,7 +14,7 @@ from datetime import datetime
 app = FastAPI()
 
 STATUS_DIR = Path(r"\\your-server\YourShare\YourFolder\Bot Availability Monitor")
-BOTS = ["Bot0", "Bot1", "Bot2", "Bot3", "Bot4", "Bot5"]
+BOTS = ["Bot0", "Bot1", "Bot2", "Bot3", "Bot4", "Bot5", "Bot6"]
 
 
 def read_bot(bot):

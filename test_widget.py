@@ -11,7 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # widget.py imports webview which needs a display - mock it before import
 sys.modules['webview'] = MagicMock()
 
-from widget import Api, STATUS_DIR, BOTS
+try:
+    from widget import Api, STATUS_DIR, BOTS
+except ImportError:  # public repo ships widget_example.py only
+    from widget_example import Api, STATUS_DIR, BOTS
 
 
 def make_json(status, delta_seconds=0, last_connected=None):
