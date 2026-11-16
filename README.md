@@ -23,7 +23,6 @@ bot-availability-monitor/
 ├── monitor_BotN_example.ps1   # Bot PC status writer (session detection + debounce)
 ├── widget_example.py          # Desktop widget (pywebview), 4 layouts + mini mode
 ├── app_example.py             # Web dashboard (FastAPI)
-├── test_widget.py             # Widget read-logic tests
 └── project-overview.html      # Visual overview
 ```
 
